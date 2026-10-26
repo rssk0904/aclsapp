@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ACLS 実践シミュレーター</title>
+  <style>
+    :root {
+      --bg-dark: #0a0f1d;
+      --panel-bg: #131b2e;
+      --panel-border: #233554;
+      --accent-green: #00ff66;
+      --accent-red: #ff3344;
+      --accent-amber: #ffbb00;
+      --accent-cyan: #00e5ff;
+      --text-main: #e2e8f0;
+      --text-sub: #94a3b8;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+    }
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 16px;
+    }
+    .app-container {
+      width: 100%;
+      max-width: 900px;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+    }
+    header {
+      background: #0b1120;
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--panel-border);
+    }
+    .header-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .header-controls {
+      display: flex;
+      gap: 8px;
+    }
+    button.icon-btn {
+      background: transparent;
+      border: 1px solid var(--panel-border);
+      color: var(--text-sub);
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+    button.icon-btn:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-main);
+    }
+
+    /* モニター領域 */
+    .monitor-section {
+      background: #000;
+      padding: 16px;
+      position: relative;
+      border-bottom: 2px solid var(--panel-border);
+    }
+    .hud-bar {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-family: "Courier New", monospace;
+      font-size: 0.85rem;
+    }
+    .hud-item {
+      display: flex;
+      gap: 6px;
+    }
+    .hud-label {
+      color: var(--text-sub);
+    }
+    .hud-val {
+      font-weight: bold;
+      color: var(--accent-cyan);
+    }
+    canvas#ecgCanvas {
+      width: 100%;
+      height: 180px;
+      display: block;
+      background: #020b05;
+      border-radius: 4px;
+      border: 1px solid #003311;
+    }
+    .vitals-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 12px;
+      background: #080d1a;
+      padding: 10px 14px;
+      border-radius: 6px;
+      border: 1px solid #1a2744;
+    }
+    .vital-box {
+      font-family: "Courier New", monospace;
+    }
+    .vital-title {
+      font-size: 0.75rem;
+      color: var(--text-sub);
+      text-transform: uppercase;
+    }
+    .vital-number {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--accent-green);
+    }
+    .vital-number.critical {
+      color: var(--accent-red);
+      animation: pulseAlert 1s infinite alternate;
+    }
+    @keyframes pulseAlert {
+      from { opacity: 0.6; }
+      to { opacity: 1; }
+    }
+
+    /* クイズ・指示領域 */
+    .interaction-section {
+      padding: 20px;
+    }
+    .scenario-info {
+      margin-bottom: 16px;
+      padding: 12px 16px;
+      background: rgba(0, 229, 255, 0.05);
+      border-left: 4px solid var(--accent-cyan);
+      border-radius: 4px;
+    }
+    .scenario-step {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+    .scenario-text {
+      font-size: 1.05rem;
+      line-height: 1.5;
+    }
+    .choices-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .choice-btn {
+      background: #1b2640;
+      border: 1px solid #2d3f66;
+      color: var(--text-main);
+      padding: 14px 18px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: all 0.2s;
+    }
+    .choice-btn:hover:not(:disabled) {
+      background: #233254;
+      border-color: var(--accent-cyan);
+      transform: translateY(-1px);
+    }
+    .choice-btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+    .choice-btn.correct {
+      background: rgba(0, 255, 102, 0.15) !important;
+      border-color: var(--accent-green) !important;
+      color: var(--accent-green) !important;
+    }
+    .choice-btn.incorrect {
+      background: rgba(255, 51, 68, 0.15) !important;
+      border-color: var(--accent-red) !important;
+      color: var(--accent-red) !important;
+    }
+
+    /* フィードバック表示 */
+    .feedback-panel {
+      margin-top: 16px;
+      padding: 14px 16px;
+      border-radius: 6px;
+      display: none;
+    }
+    .feedback-panel.active {
+      display: block;
+    }
+    .feedback-panel.success {
+      background: rgba(0, 255, 102, 0.1);
+      border: 1px solid var(--accent-green);
+    }
+    .feedback-panel.failure {
+      background: rgba(255, 51, 68, 0.1);
+      border: 1px solid var(--accent-red);
+    }
+    .feedback-title {
+      font-weight: 700;
+      font-size: 1rem;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .feedback-title.success { color: var(--accent-green); }
+    .feedback-title.failure { color: var(--accent-red); }
+    .feedback-text {
+      font-size: 0.9rem;
+      line-height: 1.5;
+      color: #cbd5e1;
+    }
+    .action-btn-bar {
+      margin-top: 12px;
+      display: flex;
+      justify-content: flex-end;
+    }
+    .btn-next {
+      background: var(--accent-cyan);
+      color: #05101f;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .btn-next:hover {
+      background: #33ecff;
+    }
+
+    /* モーダル */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.75);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 100;
+    }
+    .modal-overlay.open {
+      display: flex;
+    }
+    .modal-content {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      max-width: 600px;
+      width: 100%;
+      padding: 24px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .modal-title {
+      font-size: 1.2rem;
+      color: var(--accent-cyan);
+      margin-bottom: 12px;
+    }
+    .modal-body {
+      font-size: 0.9rem;
+      line-height: 1.6;
+      color: var(--text-main);
+    }
+    .modal-body ul {
+      margin-left: 20px;
+      margin-top: 8px;
+    }
+    .modal-close-btn {
+      margin-top: 18px;
+      background: #233554;
+      border: none;
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      float: right;
+    }
+    /* 除細動フラッシュエフェクト */
+    .shock-flash {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(255, 255, 255, 0.85);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.1s ease-out;
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-container">
+  <header>
+    <div class="header-title">
+      <span>⚡ ACLS クイズ & 実践シミュレーター</span>
+    </div>
+    <div class="header-controls">
+      <button class="icon-btn" id="btnAudioToggle">🔊 音声: ON</button>
+      <button class="icon-btn" id="btnMemo">📖 プロトコル指針</button>
+    </div>
+  </header>
+
+  <!-- ECGモニター画面 -->
+  <div class="monitor-section">
+    <div class="shock-flash" id="shockFlash"></div>
+    <div class="hud-bar">
+      <div class="hud-item">
+        <span class="hud-label">RHYTHM:</span>
+        <span class="hud-val" id="hudRhythm">LOADING...</span>
+      </div>
+      <div class="hud-item">
+        <span class="hud-label">CPR 経過:</span>
+        <span class="hud-val" id="hudTimer">00:00</span>
+      </div>
+      <div class="hud-item">
+        <span class="hud-label">ADRENALINE:</span>
+        <span class="hud-val" id="hudAdrenaline">未投与</span>
+      </div>
+    </div>
+    <canvas id="ecgCanvas" width="850" height="180"></canvas>
+    <div class="vitals-grid">
+      <div class="vital-box">
+        <div class="vital-title">Heart Rate</div>
+        <div class="vital-number" id="vitalHR">--</div>
+      </div>
+      <div class="vital-box">
+        <div class="vital-title">NIBP (mmHg)</div>
+        <div class="vital-number critical" id="vitalBP">0 / 0</div>
+      </div>
+      <div class="vital-box">
+        <div class="vital-title">SpO2 (%)</div>
+        <div class="vital-number critical" id="vitalSPO2">--</div>
+      </div>
+      <div class="vital-box">
+        <div class="vital-title">脈拍触知</div>
+        <div class="vital-number critical" id="vitalPulse">無</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- シナリオ・選択肢 -->
+  <div class="interaction-section">
+    <div class="scenario-info">
+      <div class="scenario-step" id="stepBadge">CASE PROGRESSION</div>
+      <div class="scenario-text" id="scenarioPrompt">シナリオを読み込んでいます...</div>
+    </div>
+
+    <div class="choices-grid" id="choicesContainer"></div>
+
+    <div class="feedback-panel" id="feedbackPanel">
+      <div class="feedback-title" id="feedbackTitle">判定</div>
+      <div class="feedback-text" id="feedbackText">解説</div>
+      <div class="action-btn-bar">
+        <button class="btn-next" id="btnNextStep">次のステップへ進む</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- メモ確認モーダル -->
+<div class="modal-overlay" id="memoModal">
+  <div class="modal-content">
+    <div class="modal-title">📌 準拠ACLSプロトコル指針</div>
+    <div class="modal-body">
+      <p><strong>【基本原則】</strong><br>
+      脈・呼吸が止まっていたら直ちに胸骨圧迫・CPRを開始する。</p>
+      <br>
+      <p><strong>【VF / 無脈性VT (ショック適応)】</strong></p>
+      <ul>
+        <li>直ちに除細動（150J 二相性）</li>
+        <li>ショック直後に2分間のCPR再開</li>
+        <li>2分毎のリズムチェック</li>
+        <li>2回目ショック → 2分間CPR → リズムチェック → アドレナリン1mg投与（以降4分毎）</li>
+      </ul>
+      <br>
+      <p><strong>【Asystole / PEA (非ショック適応)】</strong></p>
+      <ul>
+        <li>静脈路確保（ルート確保）・気管挿管準備</li>
+        <li>直ちにアドレナリン1mg投与</li>
+        <li>2分ごとにモニターチェック、4分ごとにアドレナリン追加投与</li>
+        <li>Asystoleでアドレナリン効果がなければアトロピン1mg投与を考慮</li>
+      </ul>
+    </div>
+    <button class="modal-close-btn" id="btnCloseMemo">閉じる</button>
+  </div>
+</div>
+
+<script>
+/* ====================================================================
+   Web Audio サウンド生成モジュール
+==================================================================== */
+class SoundEngine {
+  constructor() {
+    this.ctx = null;
+    this.muted = false;
+  }
+  init() {
+    if (!this.ctx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      this.ctx = new AudioCtx();
+    }
+  }
+  beep(freq = 880, duration = 0.08, type = 'sine') {
+    if (this.muted) return;
+    this.init();
+    try {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+      gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start();
+      osc.stop(this.ctx.currentTime + duration);
+    } catch(e){}
+  }
+  shockSound() {
+    if (this.muted) return;
+    this.init();
+    try {
+      const node = this.ctx.createBufferSource();
+      const buffer = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.3, this.ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < buffer.length; i++) data[i] = Math.random() * 2 - 1;
+      node.buffer = buffer;
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.3);
+      node.connect(gain);
+      gain.connect(this.ctx.destination);
+      node.start();
+    } catch(e){}
+  }
+}
+const sound = new SoundEngine();
+
+/* ====================================================================
+   Canvas 心電図モニターアニメーション描画
+==================================================================== */
+const canvas = document.getElementById('ecgCanvas');
+const ctx = canvas.getContext('2d');
+let currentRhythmType = 'VF';
+let ecgX = 0;
+let lastY = 90;
+
+function drawEcgGrid() {
+  ctx.strokeStyle = '#00280f';
+  ctx.lineWidth = 0.5;
+  const step = 20;
+  for (let x = 0; x < canvas.width; x += step) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height);
+    ctx.stroke();
+  }
+  for (let y = 0; y < canvas.height; y += step) {
+    ctx.beginPath();
+    ctx.moveTo(0, y); ctx.lineTo(canvas.width, y);
+    ctx.stroke();
+  }
+}
+drawEcgGrid();
+
+function getWaveformSample(type, t) {
+  const mid = 90;
+  if (type === 'VF') {
+    return mid + Math.sin(t * 0.18) * 35 + Math.cos(t * 0.37) * 20 + (Math.random() - 0.5) * 28;
+  }
+  if (type === 'VT') {
+    const cycle = (t * 0.08) % (Math.PI * 2);
+    return mid + Math.sin(cycle) * 55 + Math.sin(cycle * 2) * 15;
+  }
+  if (type === 'ASYSTOLE') {
+    return mid + (Math.random() - 0.5) * 3;
+  }
+  if (type === 'PEA' || type === 'ROSC') {
+    const period = type === 'ROSC' ? 65 : 100;
+    const phase = t % period;
+    if (phase < 8) return mid - Math.sin((phase / 8) * Math.PI) * 7; // P波
+    if (phase < 15) return mid;
+    if (phase === 16) return mid + 8; // Q
+    if (phase === 18) {
+      if (type === 'ROSC') sound.beep(1050, 0.06);
+      return mid - 70; // R
+    }
+    if (phase === 20) return mid + 16; // S
+    if (phase < 28) return mid;
+    if (phase < 45) return mid - Math.sin(((phase - 28) / 17) * Math.PI) * 14; // T波
+    return mid;
+  }
+  return mid;
+}
+
+let tick = 0;
+function animateEcg() {
+  const speed = 2.5;
+  const clearWidth = 14;
+
+  ctx.fillStyle = '#020b05';
+  ctx.fillRect(ecgX, 0, clearWidth, canvas.height);
+
+  // グリッド再描画
+  ctx.strokeStyle = '#00280f';
+  ctx.lineWidth = 0.5;
+  for (let gx = ecgX; gx <= ecgX + clearWidth; gx += 20) {
+    const snapped = gx - (gx % 20);
+    ctx.beginPath();
+    ctx.moveTo(snapped, 0); ctx.lineTo(snapped, canvas.height);
+    ctx.stroke();
+  }
+
+  const y = getWaveformSample(currentRhythmType, tick);
+  ctx.strokeStyle = (currentRhythmType === 'ASYSTOLE') ? '#ff4444' : '#00ff66';
+  ctx.lineWidth = 2.0;
+  ctx.beginPath();
+  ctx.moveTo(ecgX, lastY);
+  ctx.lineTo(ecgX + speed, y);
+  ctx.stroke();
+
+  lastY = y;
+  ecgX += speed;
+  tick++;
+
+  if (ecgX >= canvas.width) {
+    ecgX = 0;
+  }
+  requestAnimationFrame(animateEcg);
+}
+requestAnimationFrame(animateEcg);
+
+/* ====================================================================
+   シナリオ & クイズロジック
+==================================================================== */
+const scenarios = [
+  // --- シナリオ 1: ショック適応リズム (VF / pulseless VT) ---
+  {
+    stepBadge: "SCENARIO 1: STEP 1 (初期確認)",
+    rhythm: "VF",
+    rhythmDisplay: "Ventricular Fibrillation (心室細動)",
+    hr: "---", bp: "0 / 0", spo2: "--", pulse: "なし",
+    prompt: "病棟で患者が意識を失って倒れました。呼吸はなく、総頸動脈の拍動も触知できません。モニターを装着したところ上の波形（不規則な乱波）が確認されました。最初の対応として最も適切なものはどれか？",
+    choices: [
+      { text: "アドレナリン1mgを直ちに急速静注する", correct: false, reason: "初期波形がVF/無脈性VTの場合、薬物投与よりも早期の除細動が最優先されます。" },
+      { text: "除細動器を準備し、150J（二相性）で直ちに除細動を行う", correct: true, reason: "正解！VF/無脈性VTと判断された場合は、速やかに150J（二相性）での除細動を実施します。" },
+      { text: "アトロピン1mgを静注して経過をみる", correct: false, reason: "VFに対してアトロピンは適応がありません。" },
+      { text: "除細動は行わず、気管挿管のみを優先する", correct: false, reason: "除細動が最優先であり、胸骨圧迫を中断して挿管を優先すべきではありません。" }
+    ]
+  },
+  {
+    stepBadge: "SCENARIO 1: STEP 2 (初回除細動直後)",
+    rhythm: "VF",
+    rhythmDisplay: "Ventricular Fibrillation (ショック直後)",
+    hr: "---", bp: "0 / 0", spo2: "--", pulse: "なし",
+    prompt: "150Jでの除細動ショックを通電しました。直後に行うべきアクションはどれか？",
+    choices: [
+      { text: "すぐに総頸動脈を触知し、脈拍があるか確認する", correct: false, reason: "ショック直後に脈拍やリズムを確認すると圧迫中断時間が長くなります。直ちにCPRを再開します。" },
+      { text: "直ちに2分間の胸骨圧迫・CPRを再開する", correct: true, reason: "正解！除細動直後はリズムチェックを行わず、直ちに2分間のCPRを再開します。" },
+      { text: "アドレナリン1mgを直ちに急速投与する", correct: false, reason: "指針メモのアルゴリズムでは、初回ショック直後ではなく、2回目ショック後のCPRサイクル時（以降4分毎）に投与します。" },
+      { text: "自発呼吸が戻るまで送気のみを継続する", correct: false, reason: "質の高い胸骨圧迫を含むCPRが必須です。" }
+    ]
+  },
+  {
+    stepBadge: "SCENARIO 1: STEP 3 (2分後リズムチェック)",
+    rhythm: "VT",
+    rhythmDisplay: "Pulseless VT (無脈性心室頻拍)",
+    hr: "190", bp: "0 / 0", spo2: "--", pulse: "なし",
+    prompt: "2分間のCPR終了後、リズムチェックを実施しました。モニター上は幅の広い規則的なQRS頻拍（無脈性VT）が持続しています。次の対応はどれか？",
+    choices: [
+      { text: "アトロピン1mgを静注する", correct: false, reason: "頻拍・VF/VTにアトロピンの適応はありません。" },
+      { text: "除細動（150J）を行い、直ちに2分間のCPRを再開する", correct: true, reason: "正解！VF/VT持続のため2回目の除細動を実施し、直ちに2分間のCPRに入ります。" },
+      { text: "脈拍が触れないためAsystoleとして扱う", correct: false, reason: "波形が存在し幅広QRS頻拍であるため、無脈性VT（ショック適応）として除細動を継続します。" },
+      { text: "除細動を中止し、昇圧剤の持続点滴のみ開始する", correct: false, reason: "ショック適応リズムが続いているため除細動を継続します。" }
+    ]
+  },
+  {
+    stepBadge: "SCENARIO 1: STEP 4 (2回目除細動後・薬物投与)",
+    rhythm: "VT",
+    rhythmDisplay: "VT持続中 (2分CPR中)",
+    hr: "185", bp: "0 / 0", spo2: "--", pulse: "なし",
+    prompt: "2回目の除細動（150J）を通電し、直ちに2分間のCPRを再開しました。プロトコルに従い、このサイクル中で準備・投与すべき薬剤と今後のタイミングはどれか？",
+    choices: [
+      { text: "アドレナリン1mgを投与し、以降4分ごとに投与を繰り返す", correct: true, reason: "正解！指針通り、2回目除細動→2分CPR→リズムチェックののち、アドレナリン1mgを投与し、以降4分ごとに投与します。" },
+      { text: "アトロピン1mgを急速静注する", correct: false, reason: "VF/VTプロトコルではアトロピンは使用しません。" },
+      { text: "アドレナリンを2分ごとに連続投与する", correct: false, reason: "アドレナリンの投与間隔は4分ごと（2サイクルに1回）です。" },
+      { text: "薬剤は一切使用せず除細動のみを続ける", correct: false, reason: "難治性VF/VTではアドレナリンの適切なインターバル投与が必要です。" }
+    ]
+  },
+
+  // --- シナリオ 2: 非ショック適応リズム (Asystole / PEA) ---
+  {
+    stepBadge: "SCENARIO 2: STEP 1 (Asystole確認)",
+    rhythm: "ASYSTOLE",
+    rhythmDisplay: "Asystole (心静止)",
+    hr: "0", bp: "0 / 0", spo2: "--", pulse: "なし",
+    prompt: "別の患者で急変発生。脈拍・呼吸がなく、モニターは平坦（Asystole）を示しています。この患者に対する初期対応として指針に準拠した正しい処置はどれか？",
+    choices: [
+      { text: "150Jで即座に除細動を行う", correct: false, reason: "AsystoleやPEAは非ショック適応リズムです。除細動は無効であり禁忌です。" },
+      { text: "CPRを継続しつつ、ルート確保・挿管準備を行い、アドレナリン1mgを投与する", correct: true, reason: "正解！Asystole/PEAでは除細動は行わず、CPRを続けながらルート・挿管準備を行い、速やかにアドレナリン1mgを投与します。" },
+      { text: "直ちにアトロピン1mgのみを投与してCPRは控える", correct: false, reason: "胸骨圧迫・CPRの継続が最優先であり、第一選択薬はアドレナリン1mgです。" },
+      { text: "心拍再開まで薬剤投与を待機する", correct: false, reason: "非ショック適応では可及的速やかなアドレナリン投与が予後改善に重要です。" }
+    ]
+  },
+  {
+    stepBadge: "SCENARIO 2: STEP 2 (Asystole難治例)",
+    rhythm: "ASYSTOLE",
+    rhythmDisplay: "Asystole (CPR継続中)",
+    hr: "0", bp: "0 / 0", spo2: "--", pulse: "なし",
+    prompt: "アドレナリン1mgを投与しCPRを継続、2分ごとのモニターチェックを実施しましたが依然としてAsystoleが継続し効果がみられません。指針メモに記載された追加の治療選択肢はどれか？",
+    choices: [
+      { text: "除細動器で200Jショックを行う", correct: false, reason: "Asystoleに対する除細動は心筋障害を助長するため行いません。" },
+      { text: "アドレナリンの効果がなければ、アトロピン1mg投与を考慮する", correct: true, reason: "正解！提示指針メモの「Asysならアドレナリン効果がなければアトロピン1mg」に合致します。" },
+      { text: "アドレナリンを1分ごとに増量投与する", correct: false, reason: "過度な頻回投与は有害であり、投与間隔は4分ごとを守ります。" },
+      { text: "胸骨圧迫を中断し完全抜管する", correct: false, reason: "蘇生処置の中断は行いません。" }
+    ]
+  },
+
+  // --- シナリオ 3: PEA (無脈性電気活動) からのROSC ---
+  {
+    stepBadge: "SCENARIO 3: STEP 1 (PEAの鑑別)",
+    rhythm: "PEA",
+    rhythmDisplay: "PEA (無脈性電気活動)",
+    hr: "45", bp: "0 / 0", spo2: "--", pulse: "触知不可",
+    prompt: "モニター上に洞調律様のリズム波形（HR 45）が描出されていますが、頸動脈脈拍は全く触知できません。この病態の判断と対応はどれか？",
+    choices: [
+      { text: "調律があるためCPRを直ちに終了しベッドサイドで経過観察する", correct: false, reason: "脈拍がなければ心停止（PEA）です。CPRを中止してはなりません。" },
+      { text: "PEA（無脈性電気活動）と判断し、CPR継続、ルート確保・アドレナリン1mg投与を行う", correct: true, reason: "正解！電気的波形があっても脈がなければPEAです。非ショック適応としてCPRとアドレナリン投与を行います。" },
+      { text: "150Jで直ちに同期下カルディオバージョンを行う", correct: false, reason: "PEAは除細動・カルディオバージョン適応外です。" },
+      { text: "直ちにアスピリンを経鼻投与する", correct: false, reason: "心停止対応アルゴリズムに合致しません。" }
+    ]
+  },
+  {
+    stepBadge: "SCENARIO 3: STEP 2 (自己心拍再開: ROSC)",
+    rhythm: "ROSC",
+    rhythmDisplay: "Sinus Rhythm (ROSC達成)",
+    hr: "78", bp: "118 / 74", spo2: "98", pulse: "良好に触知",
+    prompt: "CPRとアドレナリン投与後、2分後のリズムチェックで波形変化を確認。頸動脈を触知したところ明瞭な脈拍を認め、血圧 118/74 mmHg を計測しました（ROSC）。次に行うべき対応はどれか？",
+    choices: [
+      { text: "心拍が再開したため直ちに追加のアドレナリン1mgを投与する", correct: false, reason: "ROSC後にアドレナリンボーラスを投与すると重篤な不整脈や急激な高血圧を招く危険があります。" },
+      { text: "CPRを直ちに再開して2分間続ける", correct: false, reason: "脈拍が触知され自己心拍が再開しているため胸骨圧迫は中断し、心拍再開後ケアへ移行します。" },
+      { text: "CPRを終了し、気道・呼吸・循環の安定化を図る心拍再開後ケア（目標体温管理・原因検索）へ移行する", correct: true, reason: "正解！自己心拍再開（ROSC）を確認したため、呼吸循環管理、12誘導心電図、心拍再開後ケアを実施します。" },
+      { text: "胸骨圧迫を半分程度の深さで継続する", correct: false, reason: "自己心拍が再開している患者への圧迫は不要です。" }
+    ]
+  }
+];
+
+let currentStep = 0;
+
+function updateHUD(data) {
+  currentRhythmType = data.rhythm;
+  document.getElementById('hudRhythm').textContent = data.rhythmDisplay;
+  document.getElementById('vitalHR').textContent = data.hr;
+  document.getElementById('vitalBP').textContent = data.bp;
+  document.getElementById('vitalSPO2').textContent = data.spo2;
+  document.getElementById('vitalPulse').textContent = data.pulse;
+
+  if (data.rhythm === 'ROSC') {
+    document.getElementById('vitalBP').classList.remove('critical');
+    document.getElementById('vitalSPO2').classList.remove('critical');
+    document.getElementById('vitalPulse').classList.remove('critical');
+    document.getElementById('vitalPulse').style.color = 'var(--accent-green)';
+  } else {
+    document.getElementById('vitalBP').classList.add('critical');
+    document.getElementById('vitalSPO2').classList.add('critical');
+    document.getElementById('vitalPulse').classList.add('critical');
+    document.getElementById('vitalPulse').style.color = '';
+  }
+}
+
+function loadStep(index) {
+  const data = scenarios[index];
+  updateHUD(data);
+
+  document.getElementById('stepBadge').textContent = data.stepBadge;
+  document.getElementById('scenarioPrompt').textContent = data.prompt;
+
+  // フィードバックパネル初期化
+  const fb = document.getElementById('feedbackPanel');
+  fb.className = 'feedback-panel';
+  fb.style.display = 'none';
+
+  // 選択肢ボタン生成
+  const container = document.getElementById('choicesContainer');
+  container.innerHTML = '';
+
+  data.choices.forEach((choice, idx) => {
+    const btn = document.createElement('button');
+    btn.className = 'choice-btn';
+    btn.innerHTML = `<span><strong>${idx + 1}.</strong> ${choice.text}</span>`;
+    btn.onclick = () => selectChoice(choice, btn);
+    container.appendChild(btn);
+  });
+}
+
+function selectChoice(choice, clickedBtn) {
+  const buttons = document.querySelectorAll('.choice-btn');
+  buttons.forEach(b => b.disabled = true);
+
+  const fb = document.getElementById('feedbackPanel');
+  const fbTitle = document.getElementById('feedbackTitle');
+  const fbText = document.getElementById('feedbackText');
+  const nextBtn = document.getElementById('btnNextStep');
+
+  if (choice.correct) {
+    sound.beep(660, 0.1);
+    setTimeout(() => sound.beep(880, 0.15), 100);
+    clickedBtn.classList.add('correct');
+    fb.className = 'feedback-panel success active';
+    fbTitle.className = 'feedback-title success';
+    fbTitle.innerHTML = '✔ 正解！ 適切なACLS判断です';
+
+    // 除細動演出
+    if (choice.text.includes("除細動")) {
+      triggerDefibrillationFlash();
+    }
+  } else {
+    sound.beep(250, 0.25, 'sawtooth');
+    clickedBtn.classList.add('incorrect');
+    fb.className = 'feedback-panel failure active';
+    fbTitle.className = 'feedback-title failure';
+    fbTitle.innerHTML = '✖ 不正解：アルゴリズムを確認しましょう';
+  }
+
+  fbText.textContent = choice.reason;
+  fb.style.display = 'block';
+
+  if (currentStep === scenarios.length - 1) {
+    nextBtn.textContent = '全シナリオ完了（最初からやり直す）';
+  } else {
+    nextBtn.textContent = '次のステップへ進む';
+  }
+}
+
+function triggerDefibrillationFlash() {
+  sound.shockSound();
+  const flash = document.getElementById('shockFlash');
+  flash.style.opacity = '1';
+  setTimeout(() => { flash.style.opacity = '0'; }, 150);
+}
+
+document.getElementById('btnNextStep').onclick = () => {
+  currentStep++;
+  if (currentStep >= scenarios.length) {
+    currentStep = 0;
+  }
+  loadStep(currentStep);
+};
+
+/* モーダル表示切替 */
+const memoModal = document.getElementById('memoModal');
+document.getElementById('btnMemo').onclick = () => memoModal.classList.add('open');
+document.getElementById('btnCloseMemo').onclick = () => memoModal.classList.remove('open');
+memoModal.onclick = (e) => { if (e.target === memoModal) memoModal.classList.remove('open'); };
+
+/* 音声トグル */
+const audioBtn = document.getElementById('btnAudioToggle');
+audioBtn.onclick = () => {
+  sound.muted = !sound.muted;
+  audioBtn.textContent = sound.muted ? '🔇 音声: OFF' : '🔊 音声: ON';
+};
+
+// 初期ロード
+loadStep(0);
+</script>
+</body>
+</html>
